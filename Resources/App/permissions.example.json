@@ -1,0 +1,10 @@
+{
+	"uploadImages":false,
+	"pageLimit":10,
+	"adminAccess":false,
+	"modAccess":false,
+	"memberAccess":false,
+	"bugreport":false,
+	"feedback":false,
+	"sendMessage":false
+}

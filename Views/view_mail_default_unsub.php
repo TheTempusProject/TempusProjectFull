@@ -1,0 +1,2 @@
+<a href="{BASE}home/unsubscribe/{EMAIL}/{PARAMS}" class="unsubscribe" style="color: rgb(255, 255, 255);text-decoration: underline;"><font color="rgb(255, 255, 255)">Unsubscribe</font></a>
+<span class="hide">from this newsletter instantly</span>

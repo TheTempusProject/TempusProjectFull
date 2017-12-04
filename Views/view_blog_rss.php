@@ -1,0 +1,10 @@
+{LOOP}
+    <item>
+        <title>{title}</title>
+        <description>{contentSummary}</description>
+        <link>{BASE}blog/post/{ID}</link>
+        <pubDate>{DTC}{created}{/DTC}</pubDate>
+    </item>
+{/LOOP}
+{ALT}
+{/ALT}
