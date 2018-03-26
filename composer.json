@@ -13,8 +13,6 @@
     "minimum-stability": "dev",
     "require": {
         "TheTempusProject/TempusProjectCore": "1.0",
-        "twbs/bootstrap": "3.3.6",
-        "FortAwesome/Font-Awesome": "4.6.3",
         "tinymce/tinymce": "4.7.1"
     },
     "autoload": {
