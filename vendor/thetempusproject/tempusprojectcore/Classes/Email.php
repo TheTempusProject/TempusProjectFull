@@ -16,7 +16,7 @@
 namespace TempusProjectCore\Classes;
 
 use TempusProjectCore\Core\Template as Template;
-use TempusProjectCore\Functions\Docroot as Docroot;
+use TempusProjectCore\Functions\Routes as Routes;
 
 class Email
 {
@@ -153,7 +153,7 @@ class Email
         if (self::$useTemplate) {
             $data = new \stdClass();
             if (self::$unsub) {
-                $data->UNSUB = Template::standardView('mail.default.unsub');
+                $data->UNSUB = Template::standardView('email.unsubscribe');
             } else {
                 $data->UNSUB = '';
             }
@@ -167,21 +167,25 @@ class Email
                     $data->$key = $value;
                 }
             }
-            $data->MAIL_FOOT = Template::standardView('mail.default.foot');
+            $data->MAIL_FOOT = Template::standardView('email.foot');
             $data->MAIL_TITLE = self::$title;
             $data->MAIL_BODY = Template::parse(self::$message, $data);
             $subject = Template::parse(self::$subject, $data);
-            $body = Template::standardView('mail.default.template', $data);
+            $body = Template::standardView('email.template', $data);
         } else {
             $subject = self::$subject;
             $body = '<h1>' . self::$title . '</h1>' . self::$message;
         }
         if (is_object($email)) {
             foreach ($email as $data) {
-                mail($data->email, $subject, $body, self::$header);
+                if (!@mail($data->email, $subject, $body, self::$header)) {
+                    Debug::error('Failed to send email. Subject: ' . $subject . ' Email: ' . $data->email);
+                }
             }
         } else {
-            mail($email, $subject, $body, self::$header);
+            if (!@mail($email, $subject, $body, self::$header)) {
+                Debug::error('Failed to send email. Subject: ' . $subject . ' Email: ' . $email);
+            }
         }
         Debug::info("Email sent: $type.");
 
@@ -197,7 +201,7 @@ class Email
             self::$header = 'From: ' . Config::get('main/name') . ' <noreply@' . $_SERVER['HTTP_HOST'] . ">\r\n";
             self::$header .= "MIME-Version: 1.0\r\n";
             self::$header .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
-            $url = parse_url(Docroot::getAddress(), PHP_URL_HOST);
+            $url = parse_url(Routes::getAddress(), PHP_URL_HOST);
             $parts = explode(".", $url);
             $count = count($parts);
             if ($count > 2) {
