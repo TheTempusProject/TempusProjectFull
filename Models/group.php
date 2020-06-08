@@ -4,7 +4,7 @@
  *
  * This class is used for the manipulation of the groups database table.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,44 +12,105 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Models;
 
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Classes\Code as Code;
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Functions\Docroot as Docroot;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\DB as DB;
-use TempusProjectCore\Classes\Session as Session;
-use TempusProjectCore\Classes\Cookie as Cookie;
-use TempusProjectCore\Classes\Log as Log;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Email as Email;
-use TempusProjectCore\Core\Installer as Installer;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Classes\DB;
+use TempusProjectCore\Classes\Input;
 
 class Group extends Controller
 {
+    protected static $log;
+
+    /**
+     * The model constructor.
+     */
     public function __construct()
     {
         Debug::log('Model Constructed: '.get_class($this));
+        self::$log = $this->model('log');
     }
+
     /**
-     * This function is used to install database structures and configuration
-     * options needed for this model.
+     * Returns the current model version.
      *
-     * @return boolean - The status of the completed install.
+     * @return string - the correct model version
      */
-    public static function install()
+    public static function modelVersion()
     {
-        Config::addConfigCategory('group');
-        Config::addConfig('group', 'defaultGroup', 5);
-        Config::saveConfig();
+        return '3.0.0';
+    }
+
+    /**
+     * Returns an array of models required to run this model without error.
+     *
+     * @return array - An array of models
+     */
+    public static function requiredModels()
+    {
+        $required = [
+            'log'
+        ];
+        return $required;
+    }
+    
+    /**
+     * Tells the installer which types of integrations your model needs to install.
+     *
+     * @return array - Install flags
+     */
+    public static function installFlags()
+    {
+        $flags = [
+            'installDB' => true,
+            'installPermissions' => false,
+            'installConfigs' => true,
+            'installResources' => true,
+            'installPreferences' => false
+        ];
+        return $flags;
+    }
+
+    /**
+     * This function is used to install database structures needed for this model.
+     *
+     * @return boolean - The status of the completed install
+     */
+    public static function installDB()
+    {
         self::$db->newTable('groups');
         self::$db->addfield('name', 'varchar', '32');
         self::$db->addfield('permissions', 'text', '');
         self::$db->createTable();
+        return self::$db->getStatus();
+    }
+
+    /**
+     * Install configuration options needed for the model.
+     *
+     * @return bool - If the configurations were added without error
+     */
+    public static function installConfigs()
+    {
+        Config::addConfigCategory('group');
+        Config::addConfig('group', 'defaultGroup', 5);
+        return Config::saveConfig();
+    }
+
+    /**
+     * Installs any resources needed for the model. Resources are generally
+     * database entires or other structure data needed for the mdoel.
+     *
+     * @todo make this use the default permissions
+     *
+     * @return bool - The status of the completed install
+     */
+    public static function installResources()
+    {
         $fields = [
             'name' => 'Admin',
             'permissions' =>'{"uploadImages":true,"sendMessages":true,"pageLimit":100,"adminAccess":true,"modAccess":true,"memberAccess":true,"bugReport":true,"feedback":true}'
@@ -75,10 +136,22 @@ class Group extends Controller
             'permissions' =>'{"uploadImages":false,"sendMessages":false,"pageLimit":10,"adminAccess":false,"modAccess":false,"memberAccess":false,"bugReport":false,"feedback":true}'
             ];
         self::$db->insert('groups', $fields);
-        return self::$db->getStatus();
+        return true;
+    }
+    
+    /**
+     * This method will remove all the installed model components.
+     *
+     * @return bool - if the uninstall was completed without error
+     */
+    public static function uninstall()
+    {
+        Config::removeConfigCategory('group');
+        self::$db->removeTable('groups');
+        return true;
     }
 
-    public static function isEmpty($data)
+    public function isEmpty($data)
     {
         if (!Check::ID($data)) {
             return false;
@@ -89,6 +162,7 @@ class Group extends Controller
         }
         return false;
     }
+
     /**
      * Function to delete the specified group.
      *
@@ -106,7 +180,7 @@ class Group extends Controller
             if (!Check::id($instance)) {
                 $error = true;
             }
-            if (self::$group->countMembers($instance) !== 0) {
+            if ($this->countMembers($instance) !== 0) {
                 Debug::info('Group is not empty.');
                 return false;
             }
@@ -128,7 +202,7 @@ class Group extends Controller
         return true;
     }
 
-    public static function formToJson($pageLimit)
+    public function formToJson($pageLimit)
     {
         if (!Check::id($pageLimit)) {
             Debug::warn('Invalid number supplied for page limit.');
@@ -155,8 +229,11 @@ class Group extends Controller
         return $out;
     }
 
-    public static function create($name, $permissions)
+    public function create($name, $permissions)
     {
+        if (!isset(self::$log)) {
+            self::$log = $this->model('log');
+        }
         if (!Check::dataTitle($name)) {
             Debug::info("modelGroup: illegal group name.");
             
@@ -173,8 +250,11 @@ class Group extends Controller
         return false;
     }
 
-    public static function update($id, $name, $permissions)
+    public function update($id, $name, $permissions)
     {
+        if (!isset(self::$log)) {
+            self::$log = $this->model('log');
+        }
         if (!Check::id($id)) {
             return false;
         }
@@ -194,14 +274,14 @@ class Group extends Controller
         return false;
     }
 
-    public static function getPermissions($data)
+    public function getPermissions($data)
     {
         if (!is_object($data)) {
-            $docLocation = Docroot::getLocation('appPermissions');
+            $docLocation = Routes::getLocation('appPermissions');
             if ($docLocation->error) {
-                $docLocation = Docroot::getLocation('appPermissionsDefault');
+                $docLocation = Routes::getLocation('appPermissionsDefault');
                 if ($docLocation->error) {
-                    $docLocation = Docroot::getLocation('permissionsDefault');
+                    $docLocation = Routes::getLocation('permissionsDefault');
                 }
             }
             $json = json_decode(file_get_contents($docLocation->fullPath), true);
@@ -219,12 +299,13 @@ class Group extends Controller
                 $json[$name2] = 'false';
             }
         }
-        $json['userCount'] = self::countMembers($data->ID);
+        $json['userCount'] = $this->countMembers($data->ID);
         $groupData = (object) array_merge($json, (array) $data);
         return $groupData;
     }
+
     // @todo this should return the whole object, not just permissions
-    public static function findByName($name)
+    public function findByName($name)
     {
         if (!Check::dataString($name)) {
             return false;
@@ -234,10 +315,10 @@ class Group extends Controller
             Debug::warn('Could not find a group named: ' . $name);
             return false;
         }
-        return self::getPermissions($groupData->first());
+        return $this->getPermissions($groupData->first());
     }
 
-    public static function findById($id)
+    public function findById($id)
     {
         if (!Check::id($id)) {
             return false;
@@ -247,10 +328,10 @@ class Group extends Controller
             Debug::warn('Could not find a group with ID: ' . $id);
             return false;
         }
-        return self::getPermissions($groupData->first());
+        return $this->getPermissions($groupData->first());
     }
 
-    public static function listGroups()
+    public function listGroups()
     {
         $db = self::$db->getPaginated('groups', ['ID', '>=', '0']);
         if (!$db->count()) {
@@ -260,17 +341,17 @@ class Group extends Controller
         $x = 0;
         $groups = $db->results();
         foreach ($groups as &$group) {
-            $group->userCount = self::countMembers($group->ID);
+            $group->userCount = $this->countMembers($group->ID);
         }
         return $groups;
     }
 
-    public static function listMembers($id)
+    public function listMembers($id)
     {
         if (!Check::id($id)) {
             return false;
         }
-        $group = self::findById($id);
+        $group = $this->findById($id);
         if ($group === false) {
             return false;
         }
@@ -290,7 +371,7 @@ class Group extends Controller
      *
      * @return boolean|integer
      */
-    public static function countMembers($id)
+    public function countMembers($id)
     {
         if (!Check::id($id)) {
             return false;

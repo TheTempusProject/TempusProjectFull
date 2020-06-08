@@ -5,9 +5,10 @@
  * This model is used for the modification and management of the session data.
  * It also acts as an interpreter for the DB.
  *
- * Notes: After refactor, the sessions will use ID's for short term, and Cookies will use the token for long term storage
+ * Notes: After refactor, the sessions will use ID's for short term, and Cookies
+ * will use the token for long term storage
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -15,38 +16,79 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Models;
 
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Core\Installer as Installer;
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Classes\Code as Code;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Functions\Docroot as Docroot;
-use TempusProjectCore\Classes\DB as DB;
-use TempusProjectCore\Classes\Session as Session;
-use TempusProjectCore\Classes\Cookie as Cookie;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Email as Email;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Classes\Code;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Classes\DB;
+use TempusProjectCore\Classes\Session;
+use TempusProjectCore\Classes\Cookie;
 
 class Sessions extends Controller
 {
-    private static $activeSession = false;
+    protected static $group;
+    protected static $user;
+    protected static $activeSession = false;
 
+    /**
+     * The model constructor.
+     */
     public function __construct()
     {
         Debug::log('Model Constructed: '.get_class($this));
     }
 
     /**
-     * This function is used to install database structures and configuration
-     * options needed for this model.
+     * Returns the current model version.
      *
-     * @return boolean - The status of the completed install.
+     * @return string - the correct model version
      */
-    public static function install()
+    public static function modelVersion()
+    {
+        return '3.0.0';
+    }
+    
+    /**
+     * Returns an array of models required to run this model without error.
+     *
+     * @return array - An array of models
+     */
+    public static function requiredModels()
+    {
+        $required = [
+            'user',
+            'group'
+        ];
+        return $required;
+    }
+
+    /**
+     * Tells the installer which types of integrations your model needs to install.
+     *
+     * @return array - Install flags
+     */
+    public static function installFlags()
+    {
+        $flags = [
+            'installDB' => true,
+            'installPermissions' => false,
+            'installConfigs' => true,
+            'installResources' => false,
+            'installPreferences' => false
+        ];
+        return $flags;
+    }
+
+    /**
+     * This function is used to install database structures needed for this model.
+     *
+     * @return boolean - The status of the completed install
+     */
+    public static function installDB()
     {
         self::$db->newTable('sessions');
         self::$db->addfield('userID', 'int', '5');
@@ -58,15 +100,41 @@ class Sessions extends Controller
         self::$db->addfield('username', 'varchar', '20');
         self::$db->addfield('token', 'varchar', '120');
         self::$db->createTable();
+        return self::$db->getStatus();
+    }
+    
+    /**
+     * Install configuration options needed for the model.
+     *
+     * @return bool - If the configurations were added without error
+     */
+    public static function installConfigs()
+    {
         Config::updateConfig('session', 'sessionPrefix', 'TTP_');
         Config::updateConfig('cookie', 'cookiePrefix', 'TTP_');
         Config::updateConfig('cookie', 'cookieExpiry', 604800);
-        Config::saveConfig();
-        return self::$db->getStatus();
+        return Config::saveConfig();
+    }
+
+    /**
+     * This method will remove all the installed model components.
+     *
+     * @return bool - if the uninstall was completed without error
+     */
+    public static function uninstall()
+    {
+        self::$db->removeTable('sessions');
+        return true;
     }
 
     public function authenticate()
     {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
+        if (!isset(self::$group)) {
+            self::$group = $this->model('group');
+        }
         if (!$this->checkSession(Session::get('SessionID')) &&
             !$this->checkCookie(Cookie::get('RememberToken'), true)) {
             Debug::info('Sessions->authenticate - Could not authenticate cookie or session');
@@ -91,6 +159,9 @@ class Sessions extends Controller
      */
     public function checkSession($sessionID)
     {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
         // @todo lets put this on some sort of realistic checking regime other than check everything every time
         if ($sessionID == false) {
             return false;
@@ -152,6 +223,9 @@ class Sessions extends Controller
      */
     public function checkCookie($cookieToken, $create = false)
     {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
         if ($cookieToken == false) {
             return false;
         }
@@ -194,12 +268,15 @@ class Sessions extends Controller
      */
     public function newSession($expire = null, $override = false, $remember = false, $userID = null)
     {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
         if (!isset($expire)) {
             // default Session Expiration is 24 hours
             $expire = (time() + (3600 * 24));
             Debug::log('Using default expiration time');
         }
-        $lastPage = Docroot::getUrl();
+        $lastPage = Routes::getUrl();
         if (self::$activeSession !== false) {
             // there is already an active session
             if ($override === false) {

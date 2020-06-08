@@ -1,0 +1,1 @@
+<span class="label label-danger">{MESSAGE_COUNT}</span>

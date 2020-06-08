@@ -1,57 +1,84 @@
 <?php
 /**
- * Models/user.php
+ * models/user.php
  *
  * This class is used for the manipulation of the user database table.
  *
- * @version 1.0
- *
+ * @version 2.0
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
- *
  * @link    https://TheTempusProject.com
- *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Models;
 
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\DB as DB;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Classes\DB;
 use TempusProjectCore\Classes\Session as Session;
-use TempusProjectCore\Classes\Cookie as Cookie;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Email as Email;
-use TempusProjectCore\Classes\Preference as Preference;
-use TempusProjectCore\Functions\Docroot as Docroot;
-use TempusProjectCore\Classes\CustomException as CustomException;
-use TempusProjectCore\Classes\Issue as Issue;
-use TempusProjectCore\Classes\Hash as Hash;
-use TempusProjectCore\Core\Installer as Installer;
+use TempusProjectCore\Classes\Preference;
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Classes\CustomException;
+use TempusProjectCore\Classes\Hash;
 
 class User extends Controller
 {
-    private $usernames;
-    private $avatars;
-    private $data = [];
+    protected static $session;
+    protected static $group;
+    protected static $log;
+    protected $usernames;
+    protected $avatars;
+    protected $data = [];
 
-    public function __construct()
+    /**
+     * Returns the current model version.
+     *
+     * @return string - the correct model version
+     */
+    public static function modelVersion()
     {
-        Debug::log('Model Constructed: '.get_class($this));
-        if (!isset(self::$db)) {
-            self::$db = DB::getInstance();
-        }
+        return '2.0.0';
     }
 
     /**
-     * This function is used to install database structures and configuration
-     * options needed for this model.
+     * Returns an array of models required to run this model without error.
      *
-     * @return boolean - The status of the completed install.
+     * @return array - An array of models
      */
-    public static function install()
+    public static function requiredModels()
+    {
+        $required = [
+            'log',
+            'session',
+            'group'
+        ];
+        return $required;
+    }
+
+    /**
+     * Tells the installer which types of integrations your model needs to install.
+     *
+     * @return array - Install flags
+     */
+    public static function installFlags()
+    {
+        $flags = [
+            'installDB' => true,
+            'installPermissions' => false,
+            'installConfigs' => false,
+            'installResources' => false,
+            'installPreferences' => true
+        ];
+        return $flags;
+    }
+
+    /**
+     * This function is used to install database structures needed for this model.
+     *
+     * @return boolean - The status of the completed install
+     */
+    public static function installDB()
     {
         self::$db->newTable('users');
         self::$db->addfield('registered', 'int', '10');
@@ -66,12 +93,37 @@ class User extends Controller
         self::$db->addfield('confirmationCode', 'varchar', '80');
         self::$db->addfield('prefs', 'text', '');
         self::$db->createTable();
+        return self::$db->getStatus();
+    }
+
+    /**
+     * Install preferences needed for the model.
+     *
+     * @return bool - If the preferences were added without error
+     */
+    public static function installPreferences()
+    {
         Preference::addPref('gender', "unspecified");
         Preference::addPref('email', "true");
         Preference::addPref('newsletter', "true");
         Preference::addPref('avatar', "Images/defaultAvatar.png");
+        return Preference::savePrefs(true);
+    }
+
+    /**
+     * This method will remove all the installed model components.
+     *
+     * @return bool - if the uninstall was completed without error
+     */
+    public static function uninstall()
+    {
+        self::$db->removeTable('users');
+        Preference::removePref('gender');
+        Preference::removePref('email');
+        Preference::removePref('newsletter');
+        Preference::removePref('avatar');
         Preference::savePrefs(true);
-        return self::$db->getStatus();
+        return true;
     }
 
     /**
@@ -97,6 +149,7 @@ class User extends Controller
         }
         return $this->usernames[$ID];
     }
+
     /**
      * Since we need a cache of the usernames, we use this function
      * to find/return all usernames based on ID.
@@ -117,6 +170,7 @@ class User extends Controller
             return 0;
         }
     }
+
     /**
      * Since we need a cache of the usernames, we use this function
      * to find/return all usernames based on ID.
@@ -151,6 +205,9 @@ class User extends Controller
      */
     public function delete($data)
     {
+        if (!isset(self::$log)) {
+            self::$log = $this->model('log');
+        }
         foreach ($data as $instance) {
             if (!is_array($data)) {
                 $instance = $data;
@@ -176,6 +233,7 @@ class User extends Controller
         }
         return true;
     }
+
     /**
      * This function is responsible for all the business logic of logging in.
      *
@@ -187,6 +245,12 @@ class User extends Controller
      */
     public function logIn($username, $password, $remember = false)
     {
+        if (!isset(self::$log)) {
+            self::$log = $this->model('log');
+        }
+        if (!isset(self::$session)) {
+            self::$session = $this->model('sessions');
+        }
         Debug::group('login', 1);
         if (!Check::username($username)) {
             Debug::warn('Invalid Username.');
@@ -235,8 +299,11 @@ class User extends Controller
      */
     public function logOut()
     {
+        if (!isset(self::$session)) {
+            self::$session = $this->model('sessions');
+        }
         Debug::group("Logout", 1);
-        self::$session->destroy(Session::get(Session::get(self::$sessionPrefix . 'SessionToken')));
+        self::$session->destroy(Session::get(self::$sessionPrefix . 'SessionToken'));
         self::$isLoggedIn = false;
         self::$isMember = false;
         self::$isMod = false;
@@ -334,6 +401,7 @@ class User extends Controller
         if ($data->count() > 0) {
             return true;
         }
+        Debug::error('User confirmation code not found.');
         return false;
     }
 
@@ -432,6 +500,9 @@ class User extends Controller
         if ((empty($json['avatar'])) || ($json['avatar'] == 'defaultAvatar.png')) {
             $json['avatar'] = 'Images/defaultAvatar.png';
         }
+        if (!isset(self::$group)) {
+            self::$group = $this->model('group');
+        }
         $group = self::$group->findById($this->data->userGroup);
         $json['groupName'] = $group->name;
         $this->data = (object) array_merge($json, (array) $this->data);
@@ -472,11 +543,11 @@ class User extends Controller
         if (empty($fields)) {
             return false;
         }
-        $docLocation = Docroot::getLocation('appPreferences');
+        $docLocation = Routes::getLocation('appPreferences');
         if ($docLocation->error) {
-            $docLocation = Docroot::getLocation('appPreferencesDefault');
+            $docLocation = Routes::getLocation('appPreferencesDefault');
             if ($docLocation->error) {
-                $docLocation = Docroot::getLocation('preferencesDefault');
+                $docLocation = Routes::getLocation('preferencesDefault');
             }
         }
         $decodedDefaultPrefs = json_decode(file_get_contents($docLocation->fullPath), true);

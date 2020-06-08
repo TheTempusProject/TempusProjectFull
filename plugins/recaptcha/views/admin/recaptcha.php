@@ -1,0 +1,1 @@
+recaptcha settings go here

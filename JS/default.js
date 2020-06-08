@@ -1,3 +1,13 @@
+/**
+ * default.js
+ *
+ * This file is for any 'access anywhere' javascript.
+ *
+ * @version 2.0
+ * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
+ * @link    https://TheTempusProject.com
+ * @license https://opensource.org/licenses/MIT [MIT LICENSE]
+ */
 function clearText(field) {
     if (field.defaultValue == field.value) field.value = '';
     else if (field.value == '') field.value = field.defaultValue;

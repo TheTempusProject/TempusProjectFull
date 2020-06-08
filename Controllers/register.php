@@ -4,7 +4,7 @@
  *
  * This is the register controller.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,29 +12,33 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Controllers;
 
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\DB as DB;
-use TempusProjectCore\Classes\Session as Session;
-use TempusProjectCore\Classes\Cookie as Cookie;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Email as Email;
-use TempusProjectCore\Classes\Issue as Issue;
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Classes\Code as Code;
-use TempusProjectCore\Classes\Hash as Hash;
-use TempusProjectCore\Classes\Token as Token;
-use TempusProjectCore\Classes\Redirect as Redirect;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Session;
+use TempusProjectCore\Classes\Cookie;
+use TempusProjectCore\Classes\Input;
+use TempusProjectCore\Classes\Email;
+use TempusProjectCore\Classes\Issue;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Classes\Code;
+use TempusProjectCore\Classes\Hash;
+use TempusProjectCore\Classes\Redirect;
 
 class Register extends Controller
 {
+    protected static $recaptcha;
+    protected static $session;
+    protected static $user;
+    
     public function __construct()
     {
+        Debug::log('Controller Constructing: ' . get_class($this));
         self::$template->noIndex();
+        self::$session = $this->model('sessions');
+        self::$recaptcha = $this->model('recaptcha');
+        self::$user = $this->model('user');
     }
 
     public function __destruct()
@@ -63,6 +67,11 @@ class Register extends Controller
             $this->view('register');
             exit();
         }
+        if (!self::$recaptcha->verify(Input::post('g-recaptcha-response'))) {
+            Issue::error('There was an error with your login.', self::$recaptcha->getErrors());
+            $this->view('login');
+            exit();
+        }
         $code = Code::genConfirmation();
         self::$user->create([
             'username' => Input::post('username'),
@@ -74,7 +83,7 @@ class Register extends Controller
         ]);
         Email::send(Input::post('email'), 'confirmation', $code, ['template' => true]);
         Session::flash('success', 'Thank you for registering! Please check your email to confirm your account.');
-        Redirect::to('home');
+        Redirect::to('home/index');
     }
     /**
      * @todo  Come back and separate this into multiple forms because this is gross.
@@ -97,7 +106,7 @@ class Register extends Controller
             self::$user->newCode(self::$user->data()->ID);
             self::$user->get(Input::post('entry'));
             $userData = self::$user->data();
-            Email::send($userData->email, 'forgot' . $type, $userData->confirmationCode, ['template' => true]);
+            Email::send($userData->email, 'forgotPassword', $userData->confirmationCode, ['template' => true]);
             Issue::notice('Details for resetting your password have been sent to your registered email address');
             Redirect::to('home/index');
         }
@@ -139,7 +148,7 @@ class Register extends Controller
             exit();
         }
         if (!Check::form('confirmationResend')) {
-            $this->view('email.confirmation.resend');
+            $this->view('email.confirmationResend');
             exit();
         }
         Email::send(self::$activeUser->data()->email, 'confirmation', self::$activeUser->data()->confirmationCode, ['template' => true]);
@@ -153,7 +162,7 @@ class Register extends Controller
         self::$title = 'Password Reset';
         if (!isset($code) && !Input::exists('resetCode')) {
             Issue::error('No reset code provided.');
-            $this->view('password.reset.code');
+            $this->view('passwordResetCode');
             exit();
         }
         if (Input::exists('resetCode')) {
@@ -161,24 +170,24 @@ class Register extends Controller
                 $code = Input::post('resetCode');
             }
         }
-        if (self::$user->checkCode($code)) {
+        if (!self::$user->checkCode($code)) {
             Issue::error('There was an error with your reset code. Please try again.');
-            $this->view('password.reset.code');
+            $this->view('passwordResetCode');
             exit();
         }
         self::$template->set('resetCode', $code);
         if (!Input::exists()) {
-            $this->view('password.reset');
+            $this->view('passwordReset');
             exit();
         }
         if (!Check::form('passwordReset')) {
             Issue::error('There was an error with your request.', Check::userErrors());
-            $this->view('password.reset');
+            $this->view('passwordReset');
             exit();
         }
         self::$user->changePassword($code, Input::post('password'));
         Email::send(self::$user->data()->email, 'passwordChange', null, ['template' => true]);
         Session::flash('success', 'Your Password has been changed, please use your new password to log in.');
-        Regirect::to('home/login');
+        Redirect::to('home/login');
     }
 }
