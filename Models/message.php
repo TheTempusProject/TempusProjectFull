@@ -4,7 +4,7 @@
  *
  * Houses all of the functions for the core messaging system.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,29 +12,117 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Models;
 
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Classes\Permission as Permission;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\DB as DB;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Sanitize as Sanitize;
-use TempusProjectCore\Core\Template as Template;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Permission;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Classes\DB;
+use TempusProjectCore\Classes\Input;
+use TempusProjectCore\Classes\Sanitize;
+use TempusProjectCore\Core\Template;
 
 class Message extends Controller
 {
-    private $messages;
-    private $usernames;
+    protected static $user;
+    protected $messages;
+    protected $usernames;
 
+    /**
+     * The model constructor.
+     */
     public function __construct()
     {
         Debug::log('Model Constructed: '.get_class($this));
     }
 
+    /**
+     * Returns the current model version.
+     *
+     * @return string - the correct model version
+     */
+    public static function modelVersion()
+    {
+        return '3.0.0';
+    }
+    
+    /**
+     * Returns an array of models required to run this model without error.
+     *
+     * @return array - An array of models
+     */
+    public static function requiredModels()
+    {
+        $required = [
+            'user'
+        ];
+        return $required;
+    }
+    
+    /**
+     * Tells the installer which types of integrations your model needs to install.
+     *
+     * @return array - Install flags
+     */
+    public static function installFlags()
+    {
+        $flags = [
+            'installDB' => true,
+            'installPermissions' => true,
+            'installConfigs' => false,
+            'installResources' => false,
+            'installPreferences' => false
+        ];
+        return $flags;
+    }
+
+    /**
+     * This function is used to install database structures needed for this model.
+     *
+     * @return boolean - The status of the completed install
+     */
+    public static function installDB()
+    {
+        self::$db->newTable('messages');
+        self::$db->addfield('userTo', 'int', '11');
+        self::$db->addfield('userFrom', 'int', '11');
+        self::$db->addfield('parent', 'int', '11');
+        self::$db->addfield('sent', 'int', '10');
+        self::$db->addfield('lastReply', 'int', '10');
+        self::$db->addfield('senderDeleted', 'int', '1');
+        self::$db->addfield('recieverDeleted', 'int', '1');
+        self::$db->addfield('isRead', 'int', '1');
+        self::$db->addfield('message', 'text', '');
+        self::$db->addfield('subject', 'text', '');
+        self::$db->createTable();
+        return self::$db->getStatus();
+    }
+
+    /**
+     * Install permissions needed for the model.
+     *
+     * @return bool - If the permissions were added without error
+     */
+    public static function installPermissions()
+    {
+        Permission::addPerm('sendMessage', false);
+        return Permission::savePerms(true);
+    }
+    
+    /**
+     * This method will remove all the installed model components.
+     *
+     * @return bool - if the uninstall was completed without error
+     */
+    public static function uninstall()
+    {
+        Permission::removePerm('sendMessage', true);
+        self::$db->removeTable('messages');
+        return true;
+    }
+    
     public function loadInterface()
     {
         self::$template->set('MESSAGE_COUNT', $this->unreadCount());
@@ -50,32 +138,44 @@ class Message extends Controller
             self::$template->set('RECENT_MESSAGES', '');
         }
     }
-
     /**
-     * This function is used to install database structures and configuration
-     * options needed for this model.
+     * Retrieves the most recent relative message in a thread
      *
-     * @return boolean - The status of the completed install.
+     * @param  int $parent - the id of the parent message
+     * @param  string $user   - the id of the relative user
+     * @return object
      */
-    public static function install()
+    public function getLatestMessage($parent, $user, $type = null)
     {
-        self::$db->newTable('messages');
-        self::$db->addfield('userTo', 'int', '11');
-        self::$db->addfield('userFrom', 'int', '11');
-        self::$db->addfield('parent', 'int', '11');
-        self::$db->addfield('sent', 'int', '10');
-        self::$db->addfield('lastReply', 'int', '10');
-        self::$db->addfield('senderDeleted', 'int', '1');
-        self::$db->addfield('recieverDeleted', 'int', '1');
-        self::$db->addfield('isRead', 'int', '1');
-        self::$db->addfield('message', 'text', '');
-        self::$db->addfield('subject', 'text', '');
-        self::$db->createTable();
-        Permission::addPerm('sendMessage', false);
-        Permission::savePerms(true);
-        return self::$db->getStatus();
+        if (!Check::id($parent)) {
+            Debug::info('Invalid message ID');
+            return false;
+        }
+        if (!Check::id($user)) {
+            Debug::info('Invalid user ID');
+            return false;
+        }
+        $messageData = self::$db->get('messages', ['ID', '=', $parent]);
+        if ($messageData->count() == 0) {
+            Debug::info('Message not found.');
+            return false;
+        }
+        $message = $messageData->first();
+        $params = ['parent', '=', $parent];
+        if ($type !== null) {
+            $params = array_merge($params, ["AND", $type, '=', $user]);
+        }
+        $messageData = self::$db->getPaginated('messages', $params, 'ID', 'DESC', [0, 1]);
+        if ($messageData->count() != 0) {
+            if ($messageData->first()->recieverDeleted == 0) {
+                $message = $messageData->first();
+            } else {
+                $message->recieverDeleted = 1;
+            }
+        }
+        return $message;
     }
-
+    
     /**
      * This calls a view of the requested message.
      *
@@ -119,8 +219,7 @@ class Message extends Controller
             $find = $message->ID;
         }
         $messageData = self::$db->getPaginated('messages', ['ID', '=', $find, 'OR', 'Parent', '=', $find], 'ID', 'ASC')->results();
-        self::$template->set('PID', $id);
-        // need to move mark read to somewhere more logical
+        self::$template->set('PID', $find);
         
         if ($markRead == true) {
             foreach ($messageData as $instance) {
@@ -132,15 +231,21 @@ class Message extends Controller
 
     public function getInbox($limit = null)
     {
-        if (!empty($limit)) {
-            $limit = [0, $limit];
+        if (empty($limit)) {
+            $limit = 10;
         }
-        $messageData = self::$db->getPaginated('messages', ['userTo', '=', self::$activeUser->ID, "AND", 'parent', '=', 0, "AND", 'recieverDeleted', '=', 0], 'ID', 'DESC', $limit);
+        $limit = [0, $limit];
+        $messageData = self::$db->get('messages', ['parent', '=', 0, "AND", 'userFrom', '=', self::$activeUser->ID, "OR", 'parent', '=', 0, "AND", 'userTo', '=', self::$activeUser->ID], 'ID', 'DESC', $limit);
         if ($messageData->count() == 0) {
             Debug::info('No messages found');
             return false;
         }
-        return $this->processMessage($messageData->results());
+        $filters = [
+            'importantUser' => self::$activeUser->ID,
+            'deleted' => false,
+            'type' => 'userTo'
+        ];
+        return $this->processMessage($messageData->results(), $filters);
     }
 
     /**
@@ -150,16 +255,21 @@ class Message extends Controller
      */
     public function getOutbox($limit = null)
     {
-        if (!empty($limit)) {
-            $messageData = self::$db->get('messages', ['userFrom', '=', self::$activeUser->ID, "AND", 'parent', '=', 0, "AND", 'senderDeleted', '=', 0], 'ID', 'DESC', [0, $limit]);
-        } else {
-            $messageData = self::$db->getPaginated('messages', ['userFrom', '=', self::$activeUser->ID, "AND", 'parent', '=', 0, "AND", 'senderDeleted', '=', 0], 'ID', 'DESC');
+        if (empty($limit)) {
+            $limit = 10;
         }
+        $limit = [0, $limit];
+        $messageData = self::$db->get('messages', ['parent', '=', 0, "AND", 'userFrom', '=', self::$activeUser->ID], 'ID', 'DESC', $limit);
         if ($messageData->count() == 0) {
             Debug::info('No messages found');
             return false;
         }
-        return $this->processMessage($messageData->results());
+        $filters = [
+            'importantUser' => self::$activeUser->ID,
+            'deleted' => false,
+            'type' => 'userFrom'
+        ];
+        return $this->processMessage($messageData->results(), $filters);
     }
 
     /**
@@ -173,26 +283,62 @@ class Message extends Controller
      *
      * @todo  add filtering for BB-code.
      */
-    private function processMessage($messageArray)
+    private function processMessage($messageArray, $filters = [])
     {
-        foreach ($messageArray as &$message) {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
+        $out = null;
+        foreach ($messageArray as $message) {
+            if (isset($filters['type']) && isset($filters['importantUser'])) {
+                $type = $filters['type'];
+            } else {
+                $type = null;
+            }
+            if (isset($filters['importantUser'])) {
+                $user = $filters['importantUser'];
+            } else {
+                $user = self::$activeUser->ID;
+            }
+            if ($message->parent == 0) {
+                $last = $this->getLatestMessage($message->ID, $user, $type);
+            } else {
+                $last = $message;
+            }
+            if ($type != null && $message->$type != $user && $last->$type != $user) {
+                continue;
+            }
+            if (isset($filters['deleted']) && $filters['deleted'] == false) {
+                if ($type == 'userFrom') {
+                    if ($last->senderDeleted == 1) {
+                        continue;
+                    }
+                }
+                if ($type == 'userTo') {
+                    if ($last->recieverDeleted == 1) {
+                        continue;
+                    }
+                }
+            }
+            $messageOut = (array) $message;
             $short = explode(" ", Sanitize::contentShort($message->message));
             $summary = implode(" ", array_splice($short, 0, 25));
             if (count($short, 1) >= 25) {
-                $message->summary = $summary . '...';
+                $messageOut['summary'] = $summary . '...';
             } else {
-                $message->summary = $summary;
+                $messageOut['summary'] = $summary;
             }
-            if ($message->isRead == 0) {
-                $message->unreadBadge = self::$template->standardView('message.unread.badge');
+            if ($last->isRead == 0) {
+                $messageOut['unreadBadge'] = self::$template->standardView('message.unreadBadge');
             } else {
-                $message->unreadBadge = '';
+                $messageOut['unreadBadge'] = '';
             }
-            $message->fromAvatar = self::$user->getAvatar($message->userFrom);
-            $message->userTo = self::$user->getUsername($message->userTo);
-            $message->userFrom = self::$user->getUsername($message->userFrom);
+            $messageOut['fromAvatar'] = self::$user->getAvatar($message->userFrom);
+            $messageOut['userTo'] = self::$user->getUsername($message->userTo);
+            $messageOut['userFrom'] = self::$user->getUsername($message->userFrom);
+            $out[] = (object) $messageOut;
         }
-        return $messageArray;
+        return $out;
     }
 
     /**
@@ -204,7 +350,9 @@ class Message extends Controller
      */
     public function newThread($to, $subject, $message)
     {
-        Debug::error('check');
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
         if (!Check::usernameExists($to)) {
             Debug::info('Message->sendMessage: User not found.');
             return false;
@@ -296,17 +444,22 @@ class Message extends Controller
             Debug::info('Cannot send messages to yourself');
             return false;
         }
-        if (!self::$db->update('messages', $messageData->ID, ['lastReply' => time(),'isRead' => 0])) {
+        if (!self::$db->update('messages', $messageData->ID, ['lastReply' => time()])) {
             new CustomException('messagesReplyUpdate');
             return false;
         }
-        $fields = ['userTo' => $recipient,
-                   'userFrom' => self::$activeUser->ID,
-                   'message' => $message,
-                   'subject' => 're: ' . $messageData->subject,
-                   'sent' => time(),
-                   'parent' => $messageData->ID,
-                   'lastReply' => time()];
+        $fields = [
+            'senderDeleted' => 0,
+            'recieverDeleted' => 0,
+            'isRead' => 0,
+            'userTo' => $recipient,
+            'userFrom' => self::$activeUser->ID,
+            'message' => $message,
+            'subject' => 're: ' . $messageData->subject,
+            'sent' => time(),
+            'parent' => $messageData->ID,
+            'lastReply' => time()
+        ];
         if (!self::$db->insert('messages', $fields)) {
             new CustomException('messagesReplySend');
             return false;

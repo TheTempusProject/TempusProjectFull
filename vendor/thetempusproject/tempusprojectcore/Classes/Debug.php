@@ -18,8 +18,9 @@
 
 namespace TempusProjectCore\Classes;
 
-use \FirePHP as FirePHP;
-
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Core\Installer;
+use TempusDebugger\TempusDebugger;
 class Debug
 {
     /**
@@ -27,22 +28,22 @@ class Debug
      *
      * @var bool
      */
-    private static $debugStatus = false;
+    private static $debugStatus = true;
 
     /**
-     * Very Important, this will enable the firebug console output.
+     * Very Important, this will enable the TempusTools console output.
      * It only applies when debugging is enabled, or the config cannot
      * be found as a safety net.
      *
      * @var bool
      */
-    private static $console = false;
+    private static $console = true;
     private static $showLines = false;
-    private static $redirect = false;
-    private static $errorTrace = false;
+    private static $redirect = true;
+    private static $errorTrace = true;
     private static $group = 0;
-    private static $fire = null;
-    private static $debugLog = null;
+    private static $tempusDebugger;
+    private static $debugLog;
 
     /**
      * Acts as a constructor.
@@ -50,9 +51,16 @@ class Debug
     private static function startDebug()
     {
         if (self::$console) {
+            require_once Routes::getFull() . 'vendor/TheTempusProject/TempusDebugger/TempusDebugger.php';
+            
             ob_start();
-            self::$fire = FirePHP::getInstance(true);
-            self::$fire->setOption('includeLineNumbers', self::$showLines);
+            self::$tempusDebugger = TempusDebugger::getInstance(true);
+            self::$tempusDebugger->setOption('includeLineNumbers', self::$showLines);
+            $installer = new Installer;
+            self::$tempusDebugger->setHash('d73ed7591a30f0ca7d686a0e780f0d05');
+            if ($installer->getNode('installHash') !== false) {
+                self::$tempusDebugger->setHash($installer->getNode('installHash'));
+            }
         }
     }
 
@@ -96,50 +104,48 @@ class Debug
             return;
         }
         if (strlen(self::$debugLog) > 50000) {
-            self::$fire->log('Error log too large, possible loop.');
+            self::$tempusDebugger->log('Error log too large, possible loop.');
             self::$debugStatus = false;
             return;
         }
         if (!is_object($data)) {
-            self::$debugLog .= var_export($data, true);
-            self::$debugLog .= '\n';
+            self::$debugLog .= var_export($data, true) . PHP_EOL;
         } else {
-            self::$debugLog .= 'cannot save objects';
-            self::$debugLog .= '\n';
+            self::$debugLog .= 'cannot save objects' . PHP_EOL;
         }
         if (!self::$console) {
             return;
         }
-        if (!self::$fire) {
+        if (!self::$tempusDebugger) {
             self::startDebug();
         }
         switch ($type) {
             case 'variable':
-                self::$fire->info($data, $params);
+                self::$tempusDebugger->info($data, $params);
                 break;
 
             case 'groupEnd':
-                self::$fire->groupEnd();
+                self::$tempusDebugger->groupEnd();
                 break;
 
             case 'trace':
-                self::$fire->trace($data);
+                self::$tempusDebugger->trace($data);
                 break;
 
             case 'group':
                 if ($params) {
-                    self::$fire->group($data, $params);
+                    self::$tempusDebugger->group($data, $params);
                 } else {
-                    self::$fire->group($data);
+                    self::$tempusDebugger->group($data);
                 }
                 break;
 
             case 'info':
-                self::$fire->$type('color: #1452ff', '%c' . $data);
+                self::$tempusDebugger->$type('color: #1452ff', '%c' . $data);
                 break;
 
             default:
-                self::$fire->$type($data);
+                self::$tempusDebugger->$type($data);
                 break;
         }
     }
@@ -272,6 +278,6 @@ class Debug
      */
     public static function dump()
     {
-        return var_dump(self::$debugLog);
+        return self::$debugLog;
     }
 }

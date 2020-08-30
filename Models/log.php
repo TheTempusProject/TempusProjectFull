@@ -4,7 +4,7 @@
  *
  * Model for handling our logging.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,38 +12,75 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Models;
 
-use TempusProjectCore\Classes\Check as Check;
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\DB as DB;
-use TempusProjectCore\Classes\Session as Session;
-use TempusProjectCore\Classes\CustomException as CustomException;
-use TempusProjectCore\Classes\Cookie as Cookie;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Email as Email;
-use TempusProjectCore\Core\Installer as Installer;
+use TempusProjectCore\Classes\Check;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Classes\DB;
+use TempusProjectCore\Classes\CustomException;
 
 class Log extends Controller
 {
-    private static $enabled;
-    private $usernames;
+    protected static $enabled;
+    protected static $user;
+    protected $usernames;
 
+    /**
+     * The model constructor
+     */
     public function __construct()
     {
         Debug::log('Model Constructed: '.get_class($this));
     }
+    
+    /**
+     * Returns the current model version.
+     *
+     * @return string - the correct model version
+     */
+    public static function modelVersion()
+    {
+        return '3.0.0';
+    }
+    
+    /**
+     * Returns an array of models required to run this model without error.
+     *
+     * @return array - An array of models
+     */
+    public static function requiredModels()
+    {
+        $required = [
+            'user'
+        ];
+        return $required;
+    }
 
     /**
-     * This function is used to install database structures and configuration
-     * options needed for this model.
+     * Tells the installer which types of integrations your model needs to install.
      *
-     * @return boolean - The status of the completed install.
+     * @return array - Install flags
      */
-    public static function install()
+    public static function installFlags()
+    {
+        $flags = [
+            'installDB' => true,
+            'installPermissions' => false,
+            'installConfigs' => true,
+            'installResources' => false,
+            'installPreferences' => false
+        ];
+        return $flags;
+    }
+
+    /**
+     * This function is used to install database structures needed for this model.
+     *
+     * @return boolean - The status of the completed install
+     */
+    public static function installDB()
     {
         self::$db->newTable('logs');
         self::$db->addfield('userID', 'int', '11');
@@ -52,12 +89,33 @@ class Log extends Controller
         self::$db->addfield('source', 'varchar', '64');
         self::$db->addfield('action', 'text', '');
         self::$db->createTable();
+        return self::$db->getStatus();
+    }
+
+    /**
+     * Install configuration options needed for the model.
+     *
+     * @return bool - If the configurations were added without error
+     */
+    public static function installConfigs()
+    {
         Config::addConfigCategory('logging');
         Config::addConfig('logging', 'admin', true);
         Config::addConfig('logging', 'errors', true);
         Config::addConfig('logging', 'logins', true);
-        Config::saveConfig();
-        return self::$db->getStatus();
+        return Config::saveConfig();
+    }
+    
+    /**
+     * This method will remove all the installed model components.
+     *
+     * @return bool - if the uninstall was completed without error
+     */
+    public static function uninstall()
+    {
+        Config::removeConfigCategory('logging');
+        self::$db->removeTable('logs');
+        return true;
     }
 
     /**
@@ -96,9 +154,9 @@ class Log extends Controller
         return $this->parseLog($logData->first());
     }
     /**
-     * Select feedback from the logs table.
+     * Select entry from the logs table.
      *
-     * @param  int $id - The feedback id.
+     * @param  int $id - The log id.
      *
      * @return array
      */
@@ -118,7 +176,7 @@ class Log extends Controller
      * This function parses the error description and
      * separates it into separate keys in the array.
      *
-     * @param  array $data - An array of feedback we need to convert.
+     * @param  array $data - An array of errors we need to convert.
      *
      * @return array
      */
@@ -139,6 +197,9 @@ class Log extends Controller
     }
     private function parseLog($data)
     {
+        if (!isset(self::$user)) {
+            self::$user = $this->model('user');
+        }
         foreach ($data as $instance) {
             if (!is_object($instance)) {
                 $instance = $data;
@@ -273,7 +334,7 @@ class Log extends Controller
      * @param  string  $error    - What was the error
      * @param  string  $data     - Any additional info
      */
-    public static function error($errorID = 500, $class = null, $function = null, $error = null, $data = null)
+    public function error($errorID = 500, $class = null, $function = null, $error = null, $data = null)
     {
         if (!self::enabled('errors')) {
             Debug::info('Error logging is disabled in the config.');
@@ -299,7 +360,7 @@ class Log extends Controller
      *
      * @return null
      */
-    public static function login($userID, $action = 'fail')
+    public function login($userID, $action = 'fail')
     {
         if (!self::enabled('logins')) {
             Debug::info('Login logging is disabled in the config.');
@@ -321,7 +382,7 @@ class Log extends Controller
      *
      * @param string $action - Must be 'pass' or 'fail'
      */
-    public static function admin($action)
+    public function admin($action)
     {
         if (!self::enabled('admin')) {
             Debug::info('Admin logging is disabled in the config.');

@@ -15,7 +15,7 @@
 
 namespace TempusProjectCore\Classes;
 
-use TempusProjectCore\Functions\Docroot as Docroot;
+use TempusProjectCore\Functions\Routes as Routes;
 
 class Config
 {
@@ -52,11 +52,11 @@ class Config
      */
     public static function getConfig()
     {
-        $docLocation = Docroot::getLocation('appConfig');
+        $docLocation = Routes::getLocation('appConfig');
         if ($docLocation->error) {
-            $docLocation = Docroot::getLocation('appConfigDefault');
+            $docLocation = Routes::getLocation('appConfigDefault');
             if ($docLocation->error) {
-                $docLocation = Docroot::getLocation('configDefault');
+                $docLocation = Routes::getLocation('configDefault');
             }
         }
         return json_decode(file_get_contents($docLocation->fullPath), true);
@@ -135,9 +135,14 @@ class Config
             self::load();
         }
         if ($default) {
-            file_put_contents(Docroot::getLocation('appConfigDefault')->fullPath, json_encode(self::$config));
+            if (!file_put_contents(Routes::getLocation('appConfigDefault')->fullPath, json_encode(self::$config))) {
+                return false;
+            }
         }
-        file_put_contents(Docroot::getLocation('appConfig')->fullPath, json_encode(self::$config));
+        if (file_put_contents(Routes::getLocation('appConfig')->fullPath, json_encode(self::$config))) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -157,6 +162,21 @@ class Config
             return false;
         }
         self::$config[$name] = [];
+        return true;
+    }
+    public static function removeConfigCategory($name, $save = false)
+    {
+        if (self::$config === false) {
+            self::load();
+        }
+        if (!isset(self::$config[$name])) {
+            Issue::error("Config does not have ceategory: $name");
+            return false;
+        }
+        unset(self::$config[$name]);
+        if ($save) {
+            self::saveConfig(true);
+        }
         return true;
     }
 
@@ -180,6 +200,12 @@ class Config
         if (!isset(self::$config[$parent])) {
             Debug::error("No such parent: $parent");
             return false;
+        }
+        if ($value === 'true') {
+            $value = true;
+        }
+        if ($value === 'false') {
+            $value = false;
         }
         if (isset(self::$config[$parent][$name])) {
             self::$config[$parent][$name] = $value;
@@ -232,9 +258,9 @@ class Config
      *
      * @return boolean
      */
-    public static function generateConfig()
+    public static function generateConfig($mods = [])
     {
-        $docLocation = Docroot::getLocation('appConfig');
+        $docLocation = Routes::getLocation('appConfig');
         if (!$docLocation->error) {
             if (!self::$override) {
                 Debug::error('config file already exists');
@@ -243,28 +269,22 @@ class Config
             }
         }
 
-        $docLocation = Docroot::getLocation('appConfigDefault');
+        $docLocation = Routes::getLocation('appConfigDefault');
         if ($docLocation->error) {
-            $docLocation = Docroot::getLocation('configDefault');
+            $docLocation = Routes::getLocation('configDefault');
         }
 
         self::$config = json_decode(file_get_contents($docLocation->fullPath), true);
-        self::updateConfig('main', 'name', Input::postNull('siteName'), true);
-        self::updateConfig('main', 'loginLimit', 5, true);
-        self::updateConfig('main', 'pageLimit', 50, true);
-        self::updateConfig('uploads', 'files', true, true);
-        self::updateConfig('uploads', 'images', true, true);
-        self::updateConfig('uploads', 'maxFileSize', 5000000, true);
-        self::updateConfig('uploads', 'maxImageSize', 500000, true);
-        self::updateConfig('database', 'dbHost', Input::postNull('dbHost'), true);
-        self::updateConfig('database', 'dbUsername', Input::postNull('dbUsername'), true);
-        self::updateConfig('database', 'dbPassword', Input::postNull('dbPassword'), true);
-        self::updateConfig('database', 'dbName', Input::postNull('dbName'), true);
-        self::updateConfig('database', 'dbEnabled', true, true);
-        self::updateConfig('database', 'dbMaxQuery', 100, true);
-        self::saveConfig(true);
-        Debug::info('config file generated successfully.');
+        if (!empty($mods)) {
+            foreach ($mods as $mod) {
+                self::updateConfig($mod['category'], $mod['name'], $mod['value'], true);
+            }
+        }
+        if (self::saveConfig(true)) {
+            Debug::info('config file generated successfully.');
+            return true;
+        }
 
-        return true;
+        return false;
     }
 }

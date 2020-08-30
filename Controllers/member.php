@@ -4,7 +4,7 @@
  *
  * This is the members controller.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,25 +12,25 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Controllers;
 
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Issue as Issue;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Hash as Hash;
-use TempusProjectCore\Classes\Code as Code;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Issue;
 
 class Member extends Controller
 {
+    protected static $session;
+
     public function __construct()
     {
+        Debug::log('Controller Constructing: ' . get_class($this));
         self::$template->noIndex();
         if (!self::$isMember) {
             Issue::error('You do not have permission to view this page.');
             exit();
         }
+        self::$session = $this->model('sessions');
     }
     
     public function __destruct()

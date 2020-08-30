@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
     <channel>
-        <title>{TITLE} Feed</title>
+        <title>{TITLE}</title>
         <link>{BASE}blog</link>
         <description>{PAGE_DESCRIPTION}</description>
         <language>en-us</language>

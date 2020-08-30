@@ -20,15 +20,14 @@
 
 namespace TempusProjectCore\Core;
 
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Issue as Issue;
-use TempusProjectCore\Classes\Token as Token;
-use TempusProjectCore\Functions\Docroot as Docroot;
-use TempusProjectCore\Classes\Config as Config;
-use TempusProjectCore\Classes\CustomException as CustomException;
-use TempusProjectCore\Classes\Pagination as Pagination;
-use \DateTime as DateTimeZone;
-use \DateTime as DateTime;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Issue;
+use TempusProjectCore\Classes\Token;
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Classes\Config;
+use TempusProjectCore\Classes\CustomException;
+use TempusProjectCore\Classes\Pagination;
+use \DateTime;
 
 class Template extends Controller
 {
@@ -55,7 +54,7 @@ class Template extends Controller
         self::set('TITLE', 'The Tempus Project');
         self::set('PAGE_DESCRIPTION', '');
         self::set('TOKEN', Token::generate());
-        self::set('BASE', Docroot::getAddress());
+        self::set('BASE', Routes::getAddress());
         self::setRobot();
         Debug::gend();
     }
@@ -74,10 +73,10 @@ class Template extends Controller
     public static function setTemplate($name)
     {
         Debug::log("Setting template: $name");
-        $docLocation = Docroot::getLocation('template', $name);
+        $docLocation = Routes::getLocation('template', $name);
         if ($docLocation->error) {
             new CustomException('template', $docLocation->errorString);
-            $docLocation = Docroot::getLocation('template', Config::get('main/template'));
+            $docLocation = Routes::getLocation('template', Config::get('main/template'));
         }
         self::$templateLocation = $docLocation->fullPath;
         $load = self::loadTemplate($name);
@@ -102,7 +101,7 @@ class Template extends Controller
     {
         Debug::group('Template Loader', 1);
         $loaderName = strtolower(str_replace('.', '_', $name));
-        $docLocation = Docroot::getLocation('templateLoader', $loaderName);
+        $docLocation = Routes::getLocation('templateLoader', $loaderName);
         if ($docLocation->error) {
             new CustomException('templateLoader', $docLocation->errorString);
         } else {
@@ -161,19 +160,6 @@ class Template extends Controller
     }
 
     /**
-     * Prints the parsed and fully rendered page using the specified template from
-     * templateLocation.
-     */
-    public static function render()
-    {
-        if (empty(self::$templateLocation)) {
-            self::setTemplate(Config::get('main/template'));
-        }
-        // NOTE: This should be the only echo in the system.
-        echo self::parse(file_get_contents(self::$templateLocation));
-    }
-
-    /**
      * Adds a $key->$value combination to the $values array.
      *
      * @param string $key   The key by which to access this value.
@@ -184,67 +170,6 @@ class Template extends Controller
     public static function set($key, $value)
     {
         self::$values[$key] = $value;
-    }
-
-    /**
-     * Adds a {$name}{/$name} filter to the filters list that can be
-     * enabled or disabled (disabled by default).
-     *
-     * @param string $name    - The filters name.
-     * @param string $match   - The regex to look for.
-     * @param bool   $enabled - Whether the filter should be enabled or disabled.
-     */
-    public static function addFilter($name, $match, $enabled = false)
-    {
-        self::$pattern[$name] = [
-            'name'    => $name,
-            'match'   => $match,
-            'enabled' => $enabled,
-        ];
-    }
-
-    /**
-     * Removes a {$name}{/$name} filter from the filters list.
-     *
-     * @param string $name - The filters name.
-     */
-    public static function removeFilter($name)
-    {
-        unset(self::$pattern[$name]);
-    }
-
-    /**
-     * Enable a filter.
-     *
-     * @param string $name - The filters name.
-     *
-     * @todo - Add a check for valid $name values
-     *         Should throw an error if the filter doesn't exist
-     */
-    public static function enableFilter($name)
-    {
-        self::$pattern[$name] = [
-            'name'    => $name,
-            'match'   => self::$pattern[$name]['match'],
-            'enabled' => true,
-        ];
-    }
-
-    /**
-     * Disables a filter.
-     *
-     * @param string $name - The filters name.
-     *
-     * @todo - Add a check for valid $name values
-     *         Should throw an error if the filter doesn't exist
-     */
-    public static function disableFilter($name)
-    {
-        self::$pattern[$name] = [
-            'name'    => $name,
-            'match'   => self::$pattern[$name]['match'],
-            'enabled' => false,
-        ];
     }
 
     /**
@@ -259,8 +184,8 @@ class Template extends Controller
      */
     public static function standardView($view, $data = null)
     {
-        $viewName = str_replace('.', '_', $view);
-        $path = Docroot::getFull() . 'Views/view_' . $viewName . '.php';
+        $viewName = ucfirst(str_replace('.', '/', $view));
+        $path = Routes::getLocation('views', $viewName)->fullPath;
         if (is_file($path)) {
             Debug::log("Calling Standard View: $viewName");
             if (!empty($data)) {
@@ -271,6 +196,19 @@ class Template extends Controller
         } else {
             new CustomException('standardView', $viewName);
         }
+    }
+
+    /**
+     * Prints the parsed and fully rendered page using the specified template from
+     * templateLocation.
+     */
+    public static function render()
+    {
+        if (empty(self::$templateLocation)) {
+            self::setTemplate(Config::get('main/template'));
+        }
+        // NOTE: This should be the only echo in the system.
+        echo self::parse(file_get_contents(self::$templateLocation));
     }
 
     /**
@@ -292,7 +230,7 @@ class Template extends Controller
         if ($selectString == null) {
             $selectString = CORE_CONTROLLER . '/' . CORE_METHOD;
         }
-        $regURL = Docroot::getAddress() . $selectString;
+        $regURL = Routes::getAddress() . $selectString;
         $regPage = "#\<li(.*)\>\<a(.*)href=\"$regURL\"(.*)\>(.*)\<\/li>#i";
         $regActive = "<li$1 class=\"active\"><a$2href=\"$regURL\"$3>$4</li>";
         if ($view == null) {
@@ -304,10 +242,9 @@ class Template extends Controller
         if (!preg_match($regPage, $view)) {
             //if you cannot find the item requested, it will default to the base of the item provided
             $newURL = explode('/', $selectString);
-            $regURL = Docroot::getAddress() . $newURL[0];
+            $regURL = Routes::getAddress() . $newURL[0];
             $regPage = "#\<li(.*)\>\<a(.*)href=\"$regURL\"(.*)\>(.*)\<\/li>#i";
         }
-
         if (isset($content)) {
             self::$content .= preg_replace($regPage, $regActive, $view);
             return true;
@@ -373,21 +310,6 @@ class Template extends Controller
     }
 
     /**
-     * A custom filter for removing annotated sections left from the form template engine.
-     *
-     * @param string $data - The string being filtered
-     *
-     * @return string - The filtered $data
-     */
-    public static function filterFormComponents($data)
-    {
-        $componentPattern = "#{CHECKED:(.*?)=(.*?)}#s";
-        $output = preg_replace($componentPattern, null, $data);
-
-        return $output;
-    }
-
-    /**
      * This will add an option to our selected options menu that will
      * automatically be selected when the template is rendered.
      *
@@ -408,16 +330,14 @@ class Template extends Controller
      *
      * @return string - The filtered $data.
      */
-    private static function filters($data)
+    private static function filterComponents($data, $flags = null)
     {
+
         if (!empty(self::$pattern)) {
             foreach (self::$pattern as $instance) {
                 if ($instance['enabled']) {
-                    $replace = '$1';
-                } else {
-                    $replace = null;
+                    $data = trim(preg_replace($instance['match'], $instance['replace'], $data));
                 }
-                $data = trim(preg_replace($instance['match'], $replace, $data));
             }
         }
 
@@ -425,82 +345,67 @@ class Template extends Controller
     }
 
     /**
-     * A filter for turning legitimate mentions into profile links.
+     * Adds a {$name}{/$name} filter to the filters list that can be
+     * enabled or disabled (disabled by default).
      *
-     * @param string $data - The string being filtered
-     *
-     * @return string - The filtered $data
+     * @param string $name    - The filters name.
+     * @param string $match   - The regex to look for.
+     * @param bool   $enabled - Whether the filter should be enabled or disabled.
      */
-    public static function filterMentions($data)
+    public static function addFilter($name, $match, $replace, $enabled = false)
     {
-        $commentPattern = '/(^|\s)@(\w*[a-zA-Z_]+\w*)/';
-        $output = preg_replace($commentPattern, ' <a href="http://twitter.com/search?q=%40\2">@\2</a>', $data);
-
-        return $output;
-    }
-
-    /**
-     * A custom filter for creating links for hash tags.
-     *
-     * @param string $data - The string being filtered
-     *
-     * @return string - The filtered $data
-     */
-    public static function filterHashtags($data)
-    {
-        $commentPattern = '/(^|\s)#(\w*[a-zA-Z_]+\w*)/';
-        $output = preg_replace($commentPattern, ' <a href="http://twitter.com/search?q=%23\2">#\2</a>', $data);
-
-        return $output;
-    }
-
-    /**
-     * A custom filter for converting certain BB code into appropriate HTML entities.
-     *
-     * @param string $data - The string being filtered
-     *
-     * @return string - The filtered $data
-     */
-    public static function filterBBCode($data)
-    {
-        $codes = [
-            '#\[b\](.*?)\[/b\]#is'               => '<b>$1</b>',
-            '#\[p\](.*?)\[/p\]#is'               => '<p>$1</p>',
-            '#\[i\](.*?)\[/i\]#is'               => '<i>$1</i>',
-            '#\[u\](.*?)\[/u\]#is'               => '<u>$1</u>',
-            '#\[s\](.*?)\[/s\]#is'               => '<del>$1</del>',
-            '#\[code\](.*?)\[/code\]#is'         => '<code>$1</code>',
-            '#\[color=(.*?)\](.*?)\[/color\]#is' => "<font color='$1'>$2</font>",
-            '#\[img\](.*?)\[/img\]#is'           => "<img src='$1'>",
-            '#\(c\)#is'                          => '&#10004;',
-            '#\(x\)#is'                          => '&#10006;',
-            '#\(!\)#is'                          => '&#10069;',
-            '#\(\?\)#is'                         => '&#10068;',
-            '#\[list\](.*?)\[/list\]#is'         => '<ul>$1</ul>',
-            '#\(\.\)(.*)$#m'                     => '<li>$1</li>',
-            '#\[url=(.*?)\](.*?)\[/url\]#is'     => "<a href='$1'>$2</a>",
-            '#\[quote=(.*?)\](.*?)\[/quote\]#is' => "<blockquote cite='$1'>$2</blockquote>",
+        self::$pattern[$name] = [
+            'name'    => $name,
+            'match'   => $match,
+            'replace' => $replace,
+            'enabled' => $enabled,
         ];
-        foreach ($codes as $reg => $replace) {
-            $data = preg_replace($reg, $replace, $data);
-        }
-
-        return $data;
     }
 
     /**
-     * A custom filter for removing annotated sections and code comments.
+     * Removes a {$name}{/$name} filter from the filters list.
      *
-     * @param string $data - The string being filtered
-     *
-     * @return string - The filtered $data
+     * @param string $name - The filters name.
      */
-    public static function filterComments($data)
+    public static function removeFilter($name)
     {
-        $commentPattern = ['#/\*.*?\*/#s', '#(?<!:)//.*#'];
-        $output = preg_replace($commentPattern, null, $data);
+        unset(self::$pattern[$name]);
+    }
 
-        return $output;
+    /**
+     * Enable a filter.
+     *
+     * @param string $name - The filters name.
+     *
+     * @todo - Add a check for valid $name values
+     *         Should throw an error if the filter doesn't exist
+     */
+    public static function enableFilter($name)
+    {
+        self::$pattern[$name] = [
+            'name'    => $name,
+            'match'   => self::$pattern[$name]['match'],
+            'replace' => self::$pattern[$name]['replace'],
+            'enabled' => true,
+        ];
+    }
+
+    /**
+     * Disables a filter.
+     *
+     * @param string $name - The filters name.
+     *
+     * @todo - Add a check for valid $name values
+     *         Should throw an error if the filter doesn't exist
+     */
+    public static function disableFilter($name)
+    {
+        self::$pattern[$name] = [
+            'name'    => $name,
+            'match'   => self::$pattern[$name]['match'],
+            'replace' => self::$pattern[$name]['replace'],
+            'enabled' => false,
+        ];
     }
 
     /**
@@ -615,14 +520,8 @@ class Template extends Controller
      *
      * @return string - The fully parsed html output.
      */
-    public static function parse($template, $data = null)
+    public static function parse($template, $data = null, $flags = null)
     {
-        //remove all comments from the source.
-        $template = self::filterComments($template);
-
-        //Run through our full list of generated filters.
-        $template = self::filters($template);
-
         //Check for a {LOOP}{/LOOP} tag.
         $template = self::buildLoop($template, $data);
 
@@ -634,7 +533,7 @@ class Template extends Controller
 
         if (strpos($template, '{OPTION=') !== false) {
             foreach (self::$options as $key => $value) {
-                $template = preg_replace($key, $value, $template);
+                $template = preg_replace($key, $value, $template, 1);
             }
             $template = preg_replace('#\{OPTION\=(.*?)\}#is', '', $template);
         }
@@ -644,6 +543,9 @@ class Template extends Controller
         $template = preg_replace_callback(
             $dtc,
             function ($data) {
+                if ($data[2] == '' || $data[2] == 'null') {
+                    return '';
+                }
                 if (stripos($data[1], 'date')) {
                     $dateFormat = self::$activePrefs->dateFormat;
                 } elseif (stripos($data[1], 'time')) {
@@ -658,10 +560,10 @@ class Template extends Controller
             },
             $template
         );
-        $template = self::filterHashtags($template);
-        $template = self::filterBBCode($template);
-        $template = self::filterMentions($template);
-        $template = self::filterFormComponents($template);
+
+        //Run through our full list of generated filters.
+        $template = self::filterComponents($template);
+
         return $template;
     }
 }

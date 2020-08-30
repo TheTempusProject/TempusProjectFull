@@ -4,7 +4,7 @@
  *
  * This is the userCP controller.
  *
- * @version 1.0
+ * @version 3.0
  *
  * @author  Joey Kimsey <JoeyKimsey@thetempusproject.com>
  *
@@ -12,30 +12,37 @@
  *
  * @license https://opensource.org/licenses/MIT [MIT LICENSE]
  */
-
 namespace TheTempusProject\Controllers;
 
-use TempusProjectCore\Core\Controller as Controller;
-use TempusProjectCore\Functions\Docroot as Docroot;
-use TempusProjectCore\Classes\Debug as Debug;
-use TempusProjectCore\Classes\Issue as Issue;
-use TempusProjectCore\Classes\Input as Input;
-use TempusProjectCore\Classes\Image as Image;
-use TempusProjectCore\Classes\Email as Email;
-use TempusProjectCore\Classes\Hash as Hash;
-use TempusProjectCore\Classes\Code as Code;
-use TempusProjectCore\Classes\Check as Check;
+use TempusProjectCore\Core\Controller;
+use TempusProjectCore\Functions\Routes;
+use TempusProjectCore\Classes\Debug;
+use TempusProjectCore\Classes\Issue;
+use TempusProjectCore\Classes\Input;
+use TempusProjectCore\Classes\Image;
+use TempusProjectCore\Classes\Email;
+use TempusProjectCore\Classes\Hash;
+use TempusProjectCore\Classes\Code;
+use TempusProjectCore\Classes\Check;
 
 class Usercp extends Controller
 {
+    protected static $session;
+    protected static $user;
+    protected static $message;
+
     public function __construct()
     {
-        self::$template->activePageSelect('nav.usercp');
+        Debug::log('Controller Constructing: ' . get_class($this));
+        self::$template->activePageSelect('navigation.usercp');
         self::$template->noIndex();
         if (!self::$isLoggedIn) {
             Issue::notice('You must be logged in to view this page!');
             exit();
         }
+        self::$session = $this->model('sessions');
+        self::$user = $this->model('user');
+        self::$message = $this->model('message');
     }
 
     public function __destruct()
@@ -58,7 +65,7 @@ class Usercp extends Controller
     {
         self::$title = 'Preferences';
         Debug::log("Controller initiated: " . __METHOD__ . ".");
-        self::$template->set('TIMEZONELIST', self::$template->standardView('timezone.dropdown'));
+        self::$template->set('TIMEZONELIST', self::$template->standardView('timezoneDropdown'));
         $a = Input::exists('submit');
         $value = $a ? Input::post('updates') : self::$activePrefs->email;
         self::$template->selectRadio('updates', $value);
@@ -73,11 +80,11 @@ class Usercp extends Controller
         if ($a) {
             if (!Check::form('userPrefs')) {
                 Issue::error('There was an error with your request.', Check::userErrors());
-                $this->view('usercp.settings', self::$activeUser);
+                $this->view('usercpSettings', self::$activeUser);
                 exit();
             }
             if (Input::exists('avatar') && Image::upload('avatar', self::$activeUser->username)) {
-                $avatar = 'Images/Uploads/' . self::$activeUser->username . '/' . Image::last();
+                $avatar = 'Uploads/Images/' . self::$activeUser->username . '/' . Image::last();
             }
             $fields = [
                 "timezone" =>    Input::post('timezone'),
@@ -97,7 +104,7 @@ class Usercp extends Controller
             $avatar = self::$activePrefs->avatar;
         }
         self::$template->set('AVATAR_SETTINGS', $avatar);
-        $this->view('usercp.settings', self::$activeUser);
+        $this->view('usercpSettings', self::$activeUser);
         exit();
     }
 
@@ -112,13 +119,13 @@ class Usercp extends Controller
         }
 
         if (!Input::exists()) {
-            $this->view('usercp.email.change');
+            $this->view('usercpEmailChange');
             exit();
         }
 
         if (!Check::form('changeEmail')) {
             Issue::error('There was an error with your request.', Check::userErrors());
-            $this->view('usercp.email.change');
+            $this->view('usercpEmailChange');
             exit();
         }
 
@@ -138,17 +145,17 @@ class Usercp extends Controller
         self::$title = 'Password Settings';
         Debug::log("Controller initiated: " . __METHOD__ . ".");
         if (!Input::exists()) {
-            $this->view('password.change');
+            $this->view('passwordChange');
             exit();
         }
         if (!Hash::check(Input::post('curpass'), self::$activeUser->password)) {
             Issue::error('Current password was incorrect.');
-            $this->view('password.change');
+            $this->view('passwordChange');
             exit();
         }
         if (!Check::form('changePassword')) {
             Issue::error('There was an error with your request.', Check::userErrors());
-            $this->view('password.change');
+            $this->view('passwordChange');
             exit();
         }
         self::$user->update(['password' => Hash::make(Input::post('password'))], self::$activeUser->ID);
@@ -164,7 +171,7 @@ class Usercp extends Controller
         switch ($action) {
             case 'viewmessage':
                 self::$title = self::$message->messageTitle($data);
-                $this->view('message', self::$message->getThread($data, true));
+                $this->view('message.message', self::$message->getThread($data, true));
                 exit();
 
             case 'reply':
@@ -232,10 +239,10 @@ class Usercp extends Controller
                     self::$message->deleteMessage(Input::post('F_'));
                 }
                 if (Input::exists('ID')) {
-                    self::$message->deleteMessage(Input::get('ID'));
+                    self::$message->deleteMessage([Input::get('ID')]);
                 }
                 if (!empty($data)) {
-                    self::$message->deleteMessage($data);
+                    self::$message->deleteMessage([$data]);
                 }
                 break;
         }

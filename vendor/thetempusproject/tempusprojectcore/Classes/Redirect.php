@@ -15,7 +15,7 @@
 
 namespace TempusProjectCore\Classes;
 
-use TempusProjectCore\Functions\Docroot as Docroot;
+use TempusProjectCore\Functions\Routes as Routes;
 
 class Redirect
 {
@@ -34,13 +34,27 @@ class Redirect
             exit();
         }
         if (is_numeric($data)) {
-            header('Location: ' . Docroot::getAddress() . 'Errors/' . $data);
+            header('Location: ' . Routes::getAddress() . 'Errors/' . $data);
         } else {
             if (!Check::path($data)) {
                 Debug::info('Invalid Redirect path.');
             } else {
-                header('Location: ' . Docroot::getAddress() . $data);
+                header('Location: ' . Routes::getAddress() . $data);
             }
         }
+    }
+    
+    /**
+     * Refreshes the current page.
+     *
+     * @return null
+     */
+    public static function reload()
+    {
+        if (Debug::status('redirect')) {
+            Debug::warn('Redirect is Disabled in Debugging mode!');
+            exit();
+        }
+        header("Refresh:0");
     }
 }

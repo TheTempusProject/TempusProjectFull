@@ -11,13 +11,14 @@
         <link rel="alternate" hreflang="en-us" href="alternateURL">
         <link rel="icon" href="{BASE}Images/favicon.ico">
         <!-- Required CSS -->
-        <link rel="stylesheet" href="{BASE}vendor/twbs/bootstrap/dist/css/bootstrap.min.css">
-        <link rel="stylesheet" href="{BASE}vendor/fortawesome/font-awesome/css/font-awesome.min.css">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
         <!-- Custom styles for this template -->
         <link rel="stylesheet" href="{BASE}Templates/default/default.css">
         <!-- Required JS -->
         <script language="JavaScript" type="text/javascript" src="{BASE}vendor/tinymce/tinymce/tinymce.min.js"></script>
         <script language="JavaScript" type="text/javascript" src="{BASE}JS/default.js"></script>
+        <script language="JavaScript" type="text/javascript" src='http://www.google.com/recaptcha/api.js'></script>
     </head>
     <body>
         <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
@@ -52,6 +53,7 @@
                     {ERROR}
                     {NOTICE}
                     {SUCCESS}
+                    {INFO}
                 </div>
             </div>
             {/UI}
@@ -70,6 +72,6 @@
         </div>
         <!-- Bootstrap core JavaScript and jquery -->
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-        <script src="{BASE}vendor/twbs/bootstrap/dist/js/bootstrap.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
     </body>
 </html>

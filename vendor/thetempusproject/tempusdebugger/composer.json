@@ -1,0 +1,27 @@
+{
+    "name": "thetempusproject/tempusdebugger",
+    "type": "library",
+    "description": "Framework for sending php messages to chrome for in-browser debugging.",
+    "license": "MIT",
+    "minimum-stability": "dev",
+    "keywords": ["php","tools","debugging","thetempusproject"],
+    "homepage": "https://github.com/TheTempusProject/TempusDebugger",
+    "authors": [
+        {
+            "name": "Joey Kimsey",
+            "email": "joeyk4816@gmail.com",
+            "homepage": "http://TheTempusProject.com",
+            "role": "Lead Developer"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0"
+    },
+    "autoload": {
+        "classmap": [
+            "TempusDebugger.php",
+            "TempusTools.php"
+        ]
+    }
+}
+
