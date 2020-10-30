@@ -1,0 +1,100 @@
+I"ê<h1 id="this-is-an-h1-tag">This is an h1 tag</h1>
+<h2 id="this-is-an-h2-tag">This is an h2 tag</h2>
+<h6 id="this-is-an-h6-tag">This is an h6 tag</h6>
+
+<p><em>This text will be italic</em></p>
+
+<p><em>This will also be italic</em></p>
+
+<p><strong>This text will be bold</strong></p>
+
+<p><strong>This will also be bold</strong></p>
+
+<p><em>You <strong>can</strong> combine them</em></p>
+
+<ul>
+  <li>Item 1</li>
+  <li>Item 2
+    <ul>
+      <li>Item 2a</li>
+      <li>Item 2b</li>
+    </ul>
+  </li>
+</ul>
+
+<ol>
+  <li>Item 1</li>
+  <li>Item 2</li>
+  <li>Item 3
+    <ol>
+      <li>Item 3a</li>
+      <li>Item 3b</li>
+    </ol>
+  </li>
+</ol>
+
+<p><img src="/images/logo.png" alt="GitHub Logo" /></p>
+
+<p>As Kanye West said:</p>
+<blockquote>
+  <p>We‚Äôre living the future so
+the present is our past.</p>
+</blockquote>
+
+<p>I think you should use an <code class="language-plaintext highlighter-rouge">&lt;addr&gt;</code> element here instead.</p>
+
+<p><del>this is strikethrough text</del></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>First Header</th>
+      <th>Second Header</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Content from cell 1</td>
+      <td>Content from cell 2</td>
+    </tr>
+    <tr>
+      <td>Content in the first column</td>
+      <td>Content in the second column</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>[x] <a href="">links</a>, <strong>formatting</strong>, and <del>tags</del> supported
+[x] list syntax required (any unordered or ordered list supported)
+[x] this is a complete item
+[ ] this is an incomplete item</p>
+
+<p><a href="https://github.com/github/linguist/blob/master/lib/linguist/languages.yml">accepted markdown types</a></p>
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nx">fancyAlert</span><span class="p">(</span><span class="nx">arg</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">if</span><span class="p">(</span><span class="nx">arg</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">$</span><span class="p">.</span><span class="nx">facebox</span><span class="p">({</span><span class="na">div</span><span class="p">:</span><span class="dl">'</span><span class="s1">#foo</span><span class="dl">'</span><span class="p">})</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>function fancyAlert(arg) {
+  if(arg) {
+    $.facebox({div:'#foo'})
+  }
+}
+</code></pre></div></div>
+
+<p>def foo():
+    if not bar:
+        return True</p>
+
+<p>I think you should use an
+<code class="language-plaintext highlighter-rouge">&lt;addr&gt;</code> element here instead.</p>
+
+<p>http://github.com - automatic!</p>
+
+<p><a href="http://github.com">GitHub</a></p>
+
+<p>https://jekyll.github.io/github-metadata/site.github/
+https://jekyllrb.com/docs/themes/</p>
+:ET
